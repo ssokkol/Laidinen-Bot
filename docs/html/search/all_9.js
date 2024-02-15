@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['russian_5froulette_0',['russian_roulette',['../classgamescog_1_1_games_cog.html#a810a130bae186f3788b8b156487611b9',1,'gamescog::GamesCog']]]
+  ['thebestchannel_0',['thebestchannel',['../classthechannelcog_1_1_the_channel_cog.html#a563c853393cb8e62ca6c357f6c512b10',1,'thechannelcog::TheChannelCog']]],
+  ['thechannelcog_1',['TheChannelCog',['../classthechannelcog_1_1_the_channel_cog.html',1,'thechannelcog']]]
 ];

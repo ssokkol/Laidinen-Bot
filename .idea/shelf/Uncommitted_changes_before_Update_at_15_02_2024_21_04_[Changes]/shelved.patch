@@ -1,0 +1,97 @@
+Index: database/db_config.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>db_name=\"games\"\r\nhost=\"localhost\"\r\nport=\"5432\"\r\nuser=\"postgres\"\r\npassword=\"qwerty666\"
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/database/db_config.py b/database/db_config.py
+--- a/database/db_config.py	(revision 5c0f80d29e57d9273e058fffed2565f020506c9f)
++++ b/database/db_config.py	(date 1708018644564)
+@@ -2,4 +2,4 @@
+ host="localhost"
+ port="5432"
+ user="postgres"
+-password="qwerty666"
+\ No newline at end of file
++password="2410"
+\ No newline at end of file
+Index: cogs/teammatecog.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import requests\r\nfrom datetime import datetime, timedelta\r\n\r\nfrom __init__ import *\r\n\r\n\r\nclass TeammateCog(commands.Cog, name=\"Find teammates commands\"):\r\n\r\n    def __init__(self, bot):\r\n        self.bot = bot\r\n\r\n    @commands.Cog.listener()\r\n    async def on_ready(self):\r\n        \"\"\"! on_ready - Событие, которое вызывается при готовности кога\r\n        @return Сообщение о готовности кога\"\"\"\r\n        info(f\"TeammateCog cog is ready\")\r\n\r\n    @commands.command(brief=\"Поиск тиммейта\")\r\n    async def find_teammate(self, ctx, *args):\r\n        \r\n        \"\"\"! find_teammate - Команда для поиска тиммейта\"\"\"\r\n        \r\n        search = await ctx.send(\"Поиск...\")\r\n\r\n        if len(args) == 3 and args[2].isdigit() and args[1].startswith(\"https://store.steampowered.com/app/\"):\r\n            await self.handle_valid_input(ctx, args, search)\r\n        elif len(args) == 3 and not args[2].isdigit():\r\n            await search.edit(content=f\"{args[2]} не является числом\")\r\n        elif len(args) != 3:\r\n            await search.edit(\r\n                content=f\"Команда должна быть введена с 3 аргументами\\n?findteammate `ссылка на steam` `ссылка на игру в steam` `время в часах`\")\r\n        else:\r\n            await search.edit(content=\"Ссылка на игру не действительна\")\r\n\r\n    async def handle_valid_input(self, ctx, args, search):\r\n        \"\"\"! handle_valid_input - Обработка валидного ввода\"\"\"\r\n        try:\r\n            response = requests.get(args[0])\r\n            response.raise_for_status()\r\n\r\n            if \"Указанный профиль не найден.\" not in response.text:\r\n                await self.process_valid_profile(ctx, args, search)\r\n            else:\r\n                await search.edit(\"Указанный профиль не найден.\")\r\n\r\n        except requests.RequestException as e:\r\n            await search.edit(f\"Ошибка при запросе, попробуйте еще раз\")\r\n\r\n    async def process_valid_profile(self, ctx, args, search):\r\n        \"\"\"! process_valid_profile - Обработка валидного профиля\"\"\"\r\n        if db.user_exists(ctx.message.author.id, args[1]):\r\n            await self.handle_existing_user(ctx, args, search)\r\n        else:\r\n            await self.handle_new_user(ctx, args, search)\r\n\r\n    async def handle_existing_user(self, ctx, args, search):\r\n        \"\"\"! handle_existing_user - Обработка существующего пользователя\"\"\"\r\n        exit_time = str(db.get_exit_time(ctx.message.author.id))\r\n        await search.edit(content=f\"Вы уже стоите в очереди на эту игру до {exit_time[2:-3]}\")\r\n        await self.send_ready_gamers(ctx, args, search)\r\n\r\n    async def handle_new_user(self, ctx, args, search):\r\n        \"\"\"! handle_new_user - Обработка нового пользователя\"\"\"\r\n        time = int(args[2])\r\n        exit_time = str((datetime.now() + timedelta(hours=time)).strftime(\"%H:%M\"))\r\n        db.add_gamer(ctx.message.author.id, args[0], args[1], exit_time,\r\n                     str((datetime.now() + timedelta(hours=time))))\r\n        TeammateCog.send_ready_gamers(self, ctx, args, search)\r\n\r\n    async def send_ready_gamers(self, ctx, args, search):\r\n        \"\"\"! send_ready_gamers - Отправка готовых игроков\"\"\"\r\n        gamers = db.get_gamers(args[1])\r\n\r\n        if gamers is not None:\r\n            new_gamers = self.filter_and_update_gamers(gamers)\r\n\r\n        if len(new_gamers) > 0:\r\n            gamers = \"\".join(new_gamers)\r\n            em = discord.Embed(title=\"Свободные игроки для вашей игры\", description=gamers,\r\n                               color=discord.Colour.random())\r\n            await ctx.send(embed=em)\r\n        else:\r\n            await search.edit(content=\"В данный момент нет игроков на эту игру\")\r\n\r\n    def filter_and_update_gamers(self, gamers):\r\n        \"\"\"! filter_and_update_gamers - Фильтрация и обновление игроков\"\"\"\r\n        new_gamers = []\r\n\r\n        for user in gamers:\r\n            user = db.remove_special_characters(str(user))\r\n            exit_time2 = str(db.get_whole_time(user))\r\n            datetime_object = datetime.strptime(exit_time2[2:-6], \"%Y-%m-%d %H:%M:%S.%f\")\r\n\r\n            if datetime.now() > datetime_object:\r\n                db.delete_user(user)\r\n            else:\r\n                exit_time1 = str(db.get_exit_time(user))\r\n                stroke = f\"<@{user}> свободен до `{exit_time1[2:-3]}`\\n\"\r\n                new_gamers.append(stroke)\r\n\r\n        return new_gamers\r\n\r\n\r\nasync def setup(bot):\r\n    await bot.add_cog(TeammateCog(bot))\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/cogs/teammatecog.py b/cogs/teammatecog.py
+--- a/cogs/teammatecog.py	(revision 5c0f80d29e57d9273e058fffed2565f020506c9f)
++++ b/cogs/teammatecog.py	(date 1708019957062)
+@@ -65,11 +65,12 @@
+         exit_time = str((datetime.now() + timedelta(hours=time)).strftime("%H:%M"))
+         db.add_gamer(ctx.message.author.id, args[0], args[1], exit_time,
+                      str((datetime.now() + timedelta(hours=time))))
+-        TeammateCog.send_ready_gamers(self, ctx, args, search)
++        await TeammateCog.send_ready_gamers(self, ctx, args, search)
+ 
+     async def send_ready_gamers(self, ctx, args, search):
+         """! send_ready_gamers - Отправка готовых игроков"""
+         gamers = db.get_gamers(args[1])
++        gamers.remove((ctx.message.author.id,))
+ 
+         if gamers is not None:
+             new_gamers = self.filter_and_update_gamers(gamers)
+@@ -95,6 +96,7 @@
+                 db.delete_user(user)
+             else:
+                 exit_time1 = str(db.get_exit_time(user))
++
+                 stroke = f"<@{user}> свободен до `{exit_time1[2:-3]}`\n"
+                 new_gamers.append(stroke)
+ 
+Index: TOKEN.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>\"\"\"Auntification data\"\"\"\r\nTOKEN = \"Ваш токен\"
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/TOKEN.py b/TOKEN.py
+--- a/TOKEN.py	(revision 5c0f80d29e57d9273e058fffed2565f020506c9f)
++++ b/TOKEN.py	(date 1708018383236)
+@@ -1,2 +1,2 @@
+ """Auntification data"""
+-TOKEN = "Ваш токен"
+\ No newline at end of file
++TOKEN = "MTEyNDM1MDYzMTIwNTk0OTQ3MQ.Gr6npm.OGBj755OppH2Zx1ksUt5C9ZPZfksAu9zswhz1w"
+\ No newline at end of file
+Index: __init__.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>import os\r\nimport sys\r\n\r\nimport importlib.util\r\nimport psycopg2\r\n\r\n\r\nimport discord\r\nimport asyncio\r\nimport colorama\r\n \r\n\r\nimport database._db_commands as db\r\n\r\n#from TOKEN import TOKEN # Раскомментируйте эту строку если вы используете TOKEN.py внутри рабочей директории\r\nfrom bot_params import PREFIX\r\nfrom _con_message_base import *\r\nfrom _functions_base import *\r\n\r\nfrom discord.ext import commands\r\nfrom pretty_help import PrettyHelp\r\nfrom accessify import protected, private\r\nfrom colorama import Fore, Style, Back\r\nfrom icecream import ic\r\nfrom datetime import datetime\r\n\r\n\r\n__AUTH_FILE_PATH = os.path.dirname(os.getcwd()) + '\\TOKEN.py'\r\n\r\nMAIN_COLOR = discord.Color.purple()\r\n\r\ncolorama.init(autoreset=True)\r\nintents = discord.Intents.default()\r\n\r\n\r\n\r\nbot = commands.Bot(command_prefix=PREFIX, help_command=PrettyHelp(color=MAIN_COLOR, no_category=\"Technical Commands\"), intents=discord.Intents.all())\r\n\r\n\r\n__spec = importlib.util.spec_from_file_location('AUTH', __AUTH_FILE_PATH)\r\n__auth = importlib.util.module_from_spec(__spec)\r\n__spec.loader.exec_module(__auth)\r\nTOKEN = __auth.TOKEN\r\n\r\nic(discord.__version__)
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/__init__.py b/__init__.py
+--- a/__init__.py	(revision 5c0f80d29e57d9273e058fffed2565f020506c9f)
++++ b/__init__.py	(date 1708018325663)
+@@ -12,7 +12,7 @@
+ 
+ import database._db_commands as db
+ 
+-#from TOKEN import TOKEN # Раскомментируйте эту строку если вы используете TOKEN.py внутри рабочей директории
++from TOKEN import TOKEN # Раскомментируйте эту строку если вы используете TOKEN.py внутри рабочей директории
+ from bot_params import PREFIX
+ from _con_message_base import *
+ from _functions_base import *
+@@ -36,10 +36,4 @@
+ 
+ bot = commands.Bot(command_prefix=PREFIX, help_command=PrettyHelp(color=MAIN_COLOR, no_category="Technical Commands"), intents=discord.Intents.all())
+ 
+-
+-__spec = importlib.util.spec_from_file_location('AUTH', __AUTH_FILE_PATH)
+-__auth = importlib.util.module_from_spec(__spec)
+-__spec.loader.exec_module(__auth)
+-TOKEN = __auth.TOKEN
+-
+ ic(discord.__version__)
+\ No newline at end of file
